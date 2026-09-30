@@ -3,12 +3,14 @@ package br.com.fiap.medistockbackend.service;
 import br.com.fiap.medistockbackend.dto.ItemEstoqueRequest;
 import br.com.fiap.medistockbackend.dto.ItemEstoqueResponse;
 import br.com.fiap.medistockbackend.dto.ResumoEstoqueResponse;
+import br.com.fiap.medistockbackend.event.EstoqueAlteradoEvent;
 import br.com.fiap.medistockbackend.exception.ResourceNotFoundException;
 import br.com.fiap.medistockbackend.model.Hospital;
 import br.com.fiap.medistockbackend.model.ItemEstoque;
 import br.com.fiap.medistockbackend.model.NivelEstoque;
 import br.com.fiap.medistockbackend.repository.ItemEstoqueRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ public class ItemEstoqueService {
 
     private final ItemEstoqueRepository itemEstoqueRepository;
     private final HospitalService hospitalService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<ItemEstoqueResponse> listar(Long hospitalId, NivelEstoque nivel) {
         List<ItemEstoque> itens = hospitalId != null
@@ -52,7 +55,9 @@ public class ItemEstoqueService {
                 .altoCustoBaixaDemanda(request.altoCustoBaixaDemanda())
                 .build();
 
-        return ItemEstoqueResponse.fromEntity(itemEstoqueRepository.save(item));
+        ItemEstoque salvo = itemEstoqueRepository.save(item);
+        publicarAlteracao(salvo);
+        return ItemEstoqueResponse.fromEntity(salvo);
     }
 
     @Transactional
@@ -70,6 +75,7 @@ public class ItemEstoqueService {
         item.setCustoUnitario(request.custoUnitario());
         item.setAltoCustoBaixaDemanda(request.altoCustoBaixaDemanda());
 
+        publicarAlteracao(item);
         return ItemEstoqueResponse.fromEntity(item);
     }
 
@@ -89,6 +95,10 @@ public class ItemEstoqueService {
         long validadeProxima = todos.stream().filter(ItemEstoque::isValidadeProxima).count();
 
         return new ResumoEstoqueResponse(todos.size(), criticos, atencao, validadeProxima);
+    }
+
+    private void publicarAlteracao(ItemEstoque item) {
+        eventPublisher.publishEvent(new EstoqueAlteradoEvent(item.getId(), item.getHospital().getId()));
     }
 
     ItemEstoque buscarEntidade(Long id) {

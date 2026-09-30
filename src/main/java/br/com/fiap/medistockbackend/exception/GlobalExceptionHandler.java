@@ -7,6 +7,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -29,9 +30,19 @@ public class GlobalExceptionHandler {
         return construirResposta(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleParametroInvalido(MethodArgumentTypeMismatchException ex) {
+        return construirResposta(HttpStatus.BAD_REQUEST, "Parametro invalido: " + ex.getName(), null);
+    }
+
     @ExceptionHandler(EmailCadastradoException.class)
     public ResponseEntity<Map<String, Object>> handleEmailDuplicado(EmailCadastradoException ex) {
         return construirResposta(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNaoEncontrado(ResourceNotFoundException ex) {
+        return construirResposta(HttpStatus.NOT_FOUND, ex.getMessage(), null);
     }
 
     @ExceptionHandler(BusinessRuleException.class)
