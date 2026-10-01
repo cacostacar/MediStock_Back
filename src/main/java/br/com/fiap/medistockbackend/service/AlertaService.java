@@ -8,6 +8,7 @@ import br.com.fiap.medistockbackend.model.StatusLogistico;
 import br.com.fiap.medistockbackend.model.Transferencia;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ public class AlertaService {
     private final FonteAlertasEstoque fonteAlertasEstoque;
     private final TransferenciaRepository transferenciaRepository;
 
+    @Transactional(readOnly = true)
     public List<AlertaResponse> listar(AlertaTipo filtro) {
         List<AlertaResponse> alertas = new ArrayList<>(fonteAlertasEstoque.listar());
         alertas.addAll(gerarAlertasLogisticos());
@@ -54,6 +56,7 @@ public class AlertaService {
         );
     }
 
+    @Transactional(readOnly = true)
     public ResumoAlertasResponse resumo() {
         List<AlertaResponse> todos = listar(null);
         return new ResumoAlertasResponse(

@@ -27,6 +27,7 @@ public class LogisticaService {
     private final ItemEstoqueService itemEstoqueService;
     private final HospitalService hospitalService;
 
+    @Transactional(readOnly = true)
     public List<EntregaResponse> listarEntregas() {
         return entregaRepository.findAll().stream().map(EntregaResponse::fromEntity).toList();
     }
@@ -56,11 +57,13 @@ public class LogisticaService {
         return EntregaResponse.fromEntity(entrega);
     }
 
+    @Transactional(readOnly = true)
     public List<TransferenciaResponse> listarTransferencias() {
         return transferenciaRepository.findAll().stream().map(TransferenciaResponse::fromEntity).toList();
     }
 
     /** Dados prontos para um mapa: marcadores de hospitais e linhas de transferencias em aberto. */
+    @Transactional(readOnly = true)
     public LogisticaMapaResponse obterMapa() {
         Map<Long, HospitalMapaPonto> hospitaisPorId = hospitalRepository.findAll().stream()
                 .collect(Collectors.toMap(

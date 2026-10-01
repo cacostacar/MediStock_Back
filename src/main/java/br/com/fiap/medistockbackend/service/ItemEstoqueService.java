@@ -24,6 +24,7 @@ public class ItemEstoqueService {
     private final HospitalService hospitalService;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Transactional(readOnly = true)
     public List<ItemEstoqueResponse> listar(Long hospitalId, NivelEstoque nivel) {
         List<ItemEstoque> itens = hospitalId != null
                 ? itemEstoqueRepository.findByHospitalId(hospitalId)
@@ -35,6 +36,7 @@ public class ItemEstoqueService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public ItemEstoqueResponse buscarPorId(Long id) {
         return ItemEstoqueResponse.fromEntity(buscarEntidade(id));
     }
@@ -87,6 +89,7 @@ public class ItemEstoqueService {
         itemEstoqueRepository.deleteById(id);
     }
 
+    @Transactional(readOnly = true)
     public ResumoEstoqueResponse resumo() {
         List<ItemEstoque> todos = itemEstoqueRepository.findAll();
 

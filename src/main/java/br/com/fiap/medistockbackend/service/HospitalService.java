@@ -17,12 +17,14 @@ public class HospitalService {
 
     private final HospitalRepository hospitalRepository;
 
+    @Transactional(readOnly = true)
     public List<HospitalResponse> listarTodos() {
         return hospitalRepository.findAll().stream()
                 .map(HospitalResponse::fromEntity)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public HospitalResponse buscarPorId(Long id) {
         return HospitalResponse.fromEntity(buscarEntidade(id));
     }

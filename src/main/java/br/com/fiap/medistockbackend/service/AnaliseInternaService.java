@@ -9,6 +9,7 @@ import br.com.fiap.medistockbackend.repository.HistoricoConsumoRepository;
 import br.com.fiap.medistockbackend.repository.ItemEstoqueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -23,6 +24,7 @@ public class AnaliseInternaService {
     private final ItemEstoqueRepository itemEstoqueRepository;
     private final HistoricoConsumoRepository historicoConsumoRepository;
 
+    @Transactional(readOnly = true)
     public AnaliseInternaResponse analisar() {
         List<ItemEstoque> todos = itemEstoqueRepository.findAll();
 
