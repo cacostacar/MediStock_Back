@@ -17,7 +17,7 @@ public class LogisticaDtos {
             @NotNull Long hospitalDestinoId,
             @NotNull @Positive Integer quantidade,
             LocalDate dataPrevista,
-            String transportadora
+            @Size(max = 150) String transportadora
     ) {}
 
     public record EntregaResponse(

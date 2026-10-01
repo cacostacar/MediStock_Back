@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleIntegridade(DataIntegrityViolationException ex) {
         log.warn("Violacao de integridade: {}", ex.getMostSpecificCause().getMessage());
         return construirResposta(HttpStatus.CONFLICT,
-                "Operacao nao permitida: existem registros vinculados a este recurso", null);
+                "Operacao nao permitida: viola uma restricao de integridade dos dados (por exemplo, registros vinculados)", null);
     }
 
     @ExceptionHandler(EmailCadastradoException.class)
