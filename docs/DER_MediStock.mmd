@@ -8,6 +8,8 @@ erDiagram
     HOSPITAIS ||--o{ TRANSFERENCIAS : origem
     HOSPITAIS ||--o{ TRANSFERENCIAS : destino
     ITENS_ESTOQUE ||--o{ TRANSFERENCIAS : referencia
+    HOSPITAIS ||--o{ ALERTAS : possui
+    ITENS_ESTOQUE ||--o{ ALERTAS : gera
     USUARIOS {
         number ID PK
         string EMAIL_INSTITUCIONAL UK
@@ -40,4 +42,12 @@ erDiagram
         number HOSPITAL_ORIGEM_ID FK
         number HOSPITAL_DESTINO_ID FK
         string STATUS
+    }
+    ALERTAS {
+        number ID PK
+        number ITEM_ESTOQUE_ID FK
+        number HOSPITAL_ID FK
+        string TIPO
+        string MENSAGEM
+        timestamp CRIADO_EM
     }

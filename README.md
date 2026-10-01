@@ -2,11 +2,11 @@
 
 **Back-end de gestão de estoque hospitalar com persistência Oracle e integração PL/SQL.**
 
-O MediStock organiza hospitais, insumos, históricos de consumo, entregas e transferências. Esta entrega estende a aplicação Java com um modelo relacional Oracle, uma carga de dados simulados e uma procedure para registrar consumo a partir da API.
+O MediStock organiza hospitais, insumos, históricos de consumo, entregas e transferências. Esta entrega estende a aplicação Java com um modelo relacional Oracle, uma carga de dados simulados e uma procedure para registrar consumo a partir da API (Parte 2), e com uma camada PL/SQL de functions, procedures e alertas acionada pelo back-end (Parte 3).
 
 **Ambiente da demonstração:** Windows, Java 25, Spring Boot, Oracle Database Free e SQL Developer. As evidências foram capturadas em **26/09/2026** em ambiente local, com dados de demonstração.
 
-[Como executar](#execucao) · [Modelo de dados](#modelo) · [PL/SQL](#plsql) · [Testes](#testes) · [12 evidências](#evidencias)
+[Como executar](#execucao) · [Modelo de dados](#modelo) · [PL/SQL](#plsql) · [Parte 3](#parte3) · [Testes](#testes) · [12 evidências](#evidencias)
 
 <a id="objetivo"></a>
 ## Objetivo da atividade
@@ -20,6 +20,9 @@ Integrar o banco Oracle ao sistema Smart HAS, representado neste projeto pelo Me
 | Importar dados simulados relevantes ao domínio | Carga de hospitais, itens de estoque, históricos, entregas e transferências. |
 | Documentar a estrutura do banco | DER em PNG, SVG e Mermaid, dicionário completo das colunas e instruções de execução. |
 | Conectar PL/SQL ao back-end | Fluxo de registro de consumo integrado à procedure `PR_REGISTRAR_CONSUMO`. |
+| Parte 3: functions em PL/SQL | `fn_dias_cobertura_estoque` (indicador) e `fn_status_estoque_formatado` (dados formatados), usadas em consultas SQL e pela API. |
+| Parte 3: procedures em PL/SQL | `prc_registrar_alertas_criticos` (cursor, loop e exceções) e `prc_relatorio_consumo_hospital` (relatório com `SYS_REFCURSOR`). |
+| Parte 3: procedure acionada por evento do back-end | Criar ou atualizar um item de estoque dispara `prc_registrar_alertas_criticos` via JDBC; a tela de Alertas exibe o que a procedure gravou. Detalhes em [Parte 3](#parte3). |
 
 ## Tecnologias e organização
 
@@ -50,6 +53,7 @@ Os demais cadastros e consultas continuam usando os repositórios JPA. A configu
 | [database/oracle](database/oracle) | Scripts de implantação, carga e testes. |
 | [docs/MODELO_E_DICIONARIO.md](docs/MODELO_E_DICIONARIO.md) | Tipos, colunas, chaves e decisões de modelagem. |
 | [docs/evidencias](docs/evidencias) | Doze capturas da execução local. |
+| [docs/plsql/README.md](docs/plsql/README.md) | Documentação da Parte 3: functions, procedures, alertas e integração. |
 | [.env.example](.env.example) | Modelo de configuração local. |
 
 <a id="modelo"></a>
@@ -68,7 +72,7 @@ Os demais cadastros e consultas continuam usando os repositórios JPA. A configu
 | `ENTREGAS` | Entregas previstas e seus estados logísticos. | FKs para item e hospital de destino. |
 | `TRANSFERENCIAS` | Transferências entre hospitais. | FKs para item, hospital de origem e hospital de destino. |
 
-Cada relacionamento é do tipo **1:N**: um pai pode ter vários registros associados; cada filho referencia um pai existente em cada chave estrangeira. O modelo contém **seis tabelas, 48 colunas e oito chaves estrangeiras**. `USUARIOS` é independente das demais tabelas nesta versão.
+Cada relacionamento é do tipo **1:N**: um pai pode ter vários registros associados; cada filho referencia um pai existente em cada chave estrangeira. O modelo base contém **seis tabelas, 48 colunas e oito chaves estrangeiras**. `USUARIOS` é independente das demais tabelas nesta versão. A Parte 3 acrescenta a tabela `ALERTAS`, preenchida pela procedure de alertas, e a view `VW_ALERTAS_VIGENTES`; ambas aparecem no DER.
 
 Decisões físicas:
 
@@ -140,8 +144,18 @@ Execute os scripts com **F5**, respeitando a conexão indicada:
 | 3 | [03_procedure_consumo.sql](database/oracle/03_procedure_consumo.sql) | `MEDISTOCK` / `FREEPDB1` | Criar ou atualizar a procedure. |
 | 4 | [04_validar_banco.sql](database/oracle/04_validar_banco.sql) | `MEDISTOCK` / `FREEPDB1` | Consultar contagens, relacionamentos e validade dos objetos. |
 | 5 | [05_testar_procedure.sql](database/oracle/05_testar_procedure.sql) | `MEDISTOCK` / `FREEPDB1` | Testar inserção, validações e rollback. |
+| 6 | [06_parte3_plsql.sql](database/oracle/06_parte3_plsql.sql) | `MEDISTOCK` / `FREEPDB1` | Parte 3: criar `ALERTAS`, a view, as functions e as procedures. Pode ser reexecutado. |
+| 7 | [07_parte3_exemplos.sql](database/oracle/07_parte3_exemplos.sql) | `MEDISTOCK` / `FREEPDB1` | Parte 3: exemplos das functions em consultas e das procedures. |
 
 No script 00, substitua `SUBSTITUA_POR_SUA_SENHA` na cópia executada localmente. Em seguida, crie uma nova conexão usando o usuário `MEDISTOCK`, a senha escolhida e o mesmo serviço `FREEPDB1`.
+
+Sem uma instalação local do Oracle (por exemplo, no macOS), o mesmo ambiente pode ser criado com Docker. A imagem já traz o serviço `FREEPDB1`, e `ORACLE_PASSWORD` define a senha do `SYSTEM`:
+
+```bash
+docker run -d --name medistock-oracle -p 1521:1521 -e ORACLE_PASSWORD=<senha-do-system> gvenzl/oracle-free:23-slim-faststart
+```
+
+Depois, conecte o SQL Developer em `localhost:1521/FREEPDB1` e siga a mesma ordem de scripts.
 
 Os scripts 00, 01 e 02 são de **implantação inicial**. O 00 interrompe a execução se o usuário já existir; o 01 pressupõe tabelas ainda não criadas; o 02 exige as tabelas vazias. Em um ambiente já implantado, utilize as consultas e os testes apropriados ao estado atual.
 
@@ -156,7 +170,10 @@ ORACLE_PASSWORD=SUBSTITUA_PELA_SENHA_DO_MEDISTOCK
 JWT_SECRET=SUBSTITUA_PELA_CHAVE_BASE64_GERADA
 JWT_EXPIRACAO_MINUTOS=120
 GEMINI_API_KEY=
+SPRING_PROFILES_ACTIVE=oracle
 ```
+
+Com `SPRING_PROFILES_ACTIVE=oracle` no `.env`, a aplicação já inicia no perfil Oracle, sem precisar do parâmetro de perfil no comando. Sem essa linha, ela usa o SQLite local.
 
 Para gerar a chave JWT, execute no PowerShell e copie o resultado para `JWT_SECRET`:
 
@@ -217,7 +234,9 @@ Após `BUILD SUCCESS`:
 .\mvnw.cmd "-Dspring-boot.run.profiles=oracle" spring-boot:run
 ```
 
-Confirme no log que o perfil `oracle` está ativo. O comando de build acima pula a execução dos testes automatizados; as evidências desta entrega correspondem aos testes manuais da API e ao script de teste PL/SQL.
+Confirme no log que o perfil `oracle` está ativo (`The following 1 profile is active: "oracle"`) e que a rotina de alertas da Parte 3 rodou (`Rotina de alertas PL/SQL executada`). O comando de build acima pula a execução dos testes automatizados; as evidências desta entrega correspondem aos testes manuais da API e ao script de teste PL/SQL.
+
+Os testes automatizados rodam com `.\mvnw.cmd package`. Os testes que acessam o Oracle real só são executados quando a variável de ambiente `ORACLE_PASSWORD` está definida; eles desfazem os registros inseridos ao final.
 
 - API: [http://localhost:8080](http://localhost:8080)
 - Swagger UI: [http://localhost:8080/docs](http://localhost:8080/docs)
@@ -261,6 +280,33 @@ No Java, a chamada JDBC utiliza `{call PR_REGISTRAR_CONSUMO(?, ?, ?, ?)}`, preen
 O endpoint aceita `mesReferencia` como `yyyy-MM` ou `yyyy-MM-dd`. No primeiro formato, o Java converte o valor para o primeiro dia do mês. A procedure preserva a data recebida.
 
 Cada execução válida acrescenta um histórico. A operação não é idempotente: repetir o POST pode gerar outro registro. O modelo permite vários registros para a mesma combinação de item, hospital e mês.
+
+<a id="parte3"></a>
+## Parte 3: functions e procedures PL/SQL
+
+Os objetos estão em [06_parte3_plsql.sql](database/oracle/06_parte3_plsql.sql), com os exemplos em [07_parte3_exemplos.sql](database/oracle/07_parte3_exemplos.sql). A documentação completa (parâmetros, conceitos usados e códigos de erro) está em [docs/plsql/README.md](docs/plsql/README.md).
+
+| Objeto | Tipo | Finalidade |
+| --- | --- | --- |
+| `fn_dias_cobertura_estoque` | Function | Indicador: em quantos dias o estoque do item se esgota, pelo consumo médio dos últimos 6 meses. |
+| `fn_status_estoque_formatado` | Function | Texto pronto para exibição com nível, hospital, quantidades e validade do item. |
+| `prc_registrar_alertas_criticos` | Procedure | Percorre os itens com `CURSOR` e grava em `ALERTAS` os casos de estoque crítico/atenção, item vencido e validade próxima, sem duplicar alertas no mesmo dia. |
+| `prc_relatorio_consumo_hospital` | Procedure | Relatório de consumo de um hospital no mês: totais em parâmetros `OUT` e detalhamento em `SYS_REFCURSOR`. |
+| `ALERTAS` / `VW_ALERTAS_VIGENTES` | Tabela / view | Histórico dos alertas gravados e os que ainda valem para o estoque atual. |
+
+Integração com o back-end (perfil `oracle`):
+
+- **Evento do back-end:** ao criar (`POST /api/estoque`) ou atualizar (`PUT /api/estoque/{id}`) um item, o serviço publica `EstoqueAlteradoEvent`; após o commit, `prc_registrar_alertas_criticos` é chamada via JDBC para o hospital do item.
+- **Rotina automatizada:** a mesma procedure roda ao iniciar a API e diariamente às 00:05.
+- **Tela de Alertas:** `GET /api/alertas` lê os alertas de estoque da view `VW_ALERTAS_VIGENTES`. No SQLite, os alertas continuam calculados em Java.
+- **Endpoints `/api/plsql`:** processar alertas, listar o histórico de `ALERTAS`, consultar os indicadores calculados pelas functions e gerar o relatório de consumo.
+
+| Método | Rota | Objeto PL/SQL |
+| --- | --- | --- |
+| `POST` | `/api/plsql/alertas/processar?hospitalId=` | `prc_registrar_alertas_criticos` |
+| `GET` | `/api/plsql/alertas?hospitalId=` | Tabela `ALERTAS` |
+| `GET` | `/api/plsql/estoque/indicadores?hospitalId=` | `SELECT` com as duas functions |
+| `GET` | `/api/plsql/relatorios/consumo/{hospitalId}?mes=AAAA-MM` | `prc_relatorio_consumo_hospital` |
 
 <a id="testes"></a>
 ## Roteiro de testes
@@ -370,6 +416,38 @@ FETCH FIRST 5 ROWS ONLY;
 Nas capturas desta execução, a contagem passou de **72 para 73**. O registro conferido possui **ID 221**, item **1**, hospital **1**, referência **2026-09-01** e quantidade **7**. O ID é gerado pelo banco e pode variar entre ambientes.
 
 A rejeição de quantidade negativa está documentada no teste **direto da procedure**. A última imagem da entrega mostra a conferência do consumo válido persistido.
+
+<a id="testes-parte3"></a>
+### Integração da Parte 3
+
+Com o token autorizado no Swagger, em `PUT /api/estoque/3` deixe a seringa do Hospital Demonstracao A abaixo do mínimo:
+
+```json
+{
+  "nome": "Seringa descartavel 10 ml",
+  "quantidadeAtual": 30,
+  "quantidadeMinima": 40,
+  "unidadeMedida": "UN",
+  "localArmazenamento": "Almoxarifado demonstracao",
+  "hospitalId": 1,
+  "validade": "2027-06-30",
+  "custoUnitario": 1.30,
+  "altoCustoBaixaDemanda": false
+}
+```
+
+Resultados esperados:
+
+- No log: `prc_registrar_alertas_criticos acionada pelo item 3 (hospital 1): 1 alerta(s) novo(s)`.
+- `GET /api/alertas`: aparece `Estoque critico: 30 UN (minimo 40) - Seringa descartavel 10 ml`, lido de `VW_ALERTAS_VIGENTES`.
+- `GET /api/plsql/alertas?hospitalId=1`: o alerta gravado pela procedure em `ALERTAS`.
+- `GET /api/plsql/estoque/indicadores` e `GET /api/plsql/relatorios/consumo/1`: as functions e o relatório de consumo do mês atual. Para os dados da carga simulada, informe o mês anterior em `mes` (formato `AAAA-MM`).
+
+Para conferir no SQL Developer:
+
+```sql
+SELECT TIPO, MENSAGEM, CRIADO_EM FROM ALERTAS ORDER BY CRIADO_EM DESC;
+```
 
 ### Resultados documentados
 
@@ -512,7 +590,9 @@ A validação foi realizada no ambiente do projeto, usando o Swagger para as req
 | `ORA-12505` no SQL Developer | Usar nome do serviço `FREEPDB1`, host `localhost` e porta `1521`. |
 | HTTP `403` em uma rota protegida | Autorizar um token válido no Swagger e conferir o cabeçalho `Authorization`. |
 | Erro de validação do schema | Conferir a conexão `MEDISTOCK`, os scripts implantados e os tipos definidos no dicionário. |
-| Procedure ausente ou `INVALID` | Executar o script 03 na conexão correta e consultar `USER_ERRORS`. |
+| Procedure ausente ou `INVALID` | Executar o script 03 (ou 06, para a Parte 3) na conexão correta e consultar `USER_ERRORS`. |
+| Endpoints `/api/plsql` ausentes no Swagger | Conferir se o perfil `oracle` está ativo. |
+| HTTP `409` ao excluir item ou hospital | O registro possui históricos, entregas ou transferências vinculados; as FKs bloqueiam a exclusão. |
 
 ## Referências
 

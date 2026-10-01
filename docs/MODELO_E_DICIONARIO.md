@@ -2,7 +2,7 @@
 
 Base: repositório `luanaestanislau/MediStock_Back`, commit `083ba6a56216cfa030a6e229df9e307c76a53888`, conferido em 26/09/2026.
 
-O modelo foi implantado no ambiente local Oracle da atividade. As evidências de cadastro, consultas, procedure válida, testes PL/SQL e persistência do consumo estão reunidas no [README](../README.md#evidencias). Os scripts SQL desta entrega são a referência para reproduzir a estrutura.
+O modelo foi implantado no ambiente local Oracle da atividade. As seis tabelas do modelo base são criadas pelo script `01`; a tabela `ALERTAS` e a view `VW_ALERTAS_VIGENTES` pertencem à camada PL/SQL da Parte 3 e são criadas pelo script `06` ([documentação da Parte 3](plsql/README.md)). As evidências de cadastro, consultas, procedure válida, testes PL/SQL e persistência do consumo estão reunidas no [README](../README.md#evidencias). Os scripts SQL desta entrega são a referência para reproduzir a estrutura.
 
 ![DER completo do MediStock](DER_MediStock.png)
 
@@ -21,6 +21,8 @@ erDiagram
     HOSPITAIS ||--o{ TRANSFERENCIAS : origem
     HOSPITAIS ||--o{ TRANSFERENCIAS : destino
     ITENS_ESTOQUE ||--o{ TRANSFERENCIAS : referencia
+    HOSPITAIS ||--o{ ALERTAS : possui
+    ITENS_ESTOQUE ||--o{ ALERTAS : gera
     USUARIOS {
         number ID PK
         string EMAIL_INSTITUCIONAL UK
@@ -54,6 +56,14 @@ erDiagram
         number HOSPITAL_DESTINO_ID FK
         string STATUS
     }
+    ALERTAS {
+        number ID PK
+        number ITEM_ESTOQUE_ID FK
+        number HOSPITAL_ID FK
+        string TIPO
+        string MENSAGEM
+        timestamp CRIADO_EM
+    }
 ```
 
 ## Decisões de modelagem
@@ -63,11 +73,11 @@ erDiagram
 - `Long` vira `NUMBER(19,0)`, `Integer` vira `NUMBER(10,0)`, `Double` vira `BINARY_DOUBLE`, `BigDecimal(12,2)` vira `NUMBER(12,2)`.
 - `boolean` usa `BOOLEAN`, disponível no Oracle Free 26ai. O script não foi feito para Oracle 19c ou 21c.
 - Strings usam `VARCHAR2(... CHAR)`. `LocalDate` usa `DATE` e `LocalDateTime` usa `TIMESTAMP(6)`.
-- As FKs preservam os relacionamentos do código. Não há exclusão em cascata: referências precisam ser tratadas antes de excluir os pais.
+- As FKs preservam os relacionamentos do código. Nas tabelas do modelo base não há exclusão em cascata: referências precisam ser tratadas antes de excluir os pais, e a API responde HTTP 409 quando a exclusão é bloqueada. A exceção é `ALERTAS`, cujos registros são removidos junto com o item.
 - Quantidades, custos e estados logísticos têm constraints. Há oito índices de suporte às FKs e consultas de histórico, além dos índices das PKs e da unicidade de e-mail.
 - O histórico preserva a possibilidade de registrar a demanda de um item em outro hospital, usada pela análise de redistribuição. A FK do histórico não é obrigada a repetir o hospital atual do estoque.
 - Não foi adicionada unicidade por item/hospital/mês: o serviço original permite vários registros. A procedure também preserva a data recebida; a carga usa o primeiro dia do mês por convenção.
-- Os níveis de estoque e os alertas são calculados a partir dos dados; não criamos tabelas extras para resultados derivados.
+- Os níveis de estoque são calculados a partir dos dados. Os alertas são gravados em `ALERTAS` pela procedure da Parte 3 como histórico auditável (o que foi alertado e quando), e a view `VW_ALERTAS_VIGENTES` filtra os que ainda valem.
 - O requisito de dados simulados é atendido com históricos e dados do domínio de logística hospitalar: hospitais, itens, entregas e transferências.
 - Entregas e transferências são registros logísticos. No código atual, alterar o status não movimenta automaticamente o saldo; a carga e a procedure não acrescentam esse comportamento.
 
@@ -147,9 +157,33 @@ erDiagram
 | `STATUS` | `VARCHAR2(20 CHAR)` | Não | PENDENTE, EM_ROTA, CONCLUIDA ou CANCELADA. |
 | `DISTANCIA_KM` | `BINARY_DOUBLE` | Sim | Distância estimada em quilômetros. |
 | `TEMPO_ESTIMADO_MIN` | `BINARY_DOUBLE` | Sim | Tempo estimado em minutos. |
-| `MOTIVO` | `VARCHAR2(300 CHAR)` | Sim | Justificativa da transferência. |
+| `MOTIVO` | `VARCHAR2(1000 CHAR)` | Sim | Justificativa da transferência; comporta o texto gerado pela IA de redistribuição. |
 | `GERADO_POR_IA` | `BOOLEAN` | Não | Indica se a origem do registro foi uma sugestão de IA. |
 | `CRIADO_EM` | `TIMESTAMP(6)` | Sim | Data e hora de criação. |
+
+### ALERTAS (Parte 3)
+
+| Coluna | Tipo Oracle | Permite NULL | Chave / descrição |
+|---|---|---|---|
+| `ID` | `NUMBER(19,0)` | Não | PK. Chave primária; gerada pelo Oracle. |
+| `ITEM_ESTOQUE_ID` | `NUMBER(19,0)` | Sim | FK → ITENS_ESTOQUE.ID, com exclusão em cascata. |
+| `HOSPITAL_ID` | `NUMBER(19,0)` | Sim | FK → HOSPITAIS.ID; hospital do item no momento do alerta. |
+| `TIPO` | `VARCHAR2(20 CHAR)` | Não | CRITICO, ATENCAO ou INFO. |
+| `MENSAGEM` | `VARCHAR2(400 CHAR)` | Não | Texto do alerta com os valores do momento em que foi gerado. |
+| `ORIGEM` | `VARCHAR2(150 CHAR)` | Sim | Local de armazenamento do item. |
+| `CRIADO_EM` | `TIMESTAMP(6)` | Não | Data e hora em que o alerta foi gravado. |
+
+Índices: `IX_ALERTA_ITEM_DATA (ITEM_ESTOQUE_ID, CRIADO_EM)`, usado na verificação de duplicidade da procedure, e `IX_ALERTA_HOSPITAL (HOSPITAL_ID)`.
+
+### VW_ALERTAS_VIGENTES (Parte 3)
+
+View com os alertas gravados hoje que ainda valem para a situação atual do item: o mais recente de cada item por categoria (estoque ou validade), descartando os que deixaram de valer, por exemplo um item reposto. É a fonte da tela de Alertas no perfil `oracle`.
+
+| Coluna | Origem |
+|---|---|
+| `ITEM_ESTOQUE_ID`, `TIPO`, `MENSAGEM`, `CRIADO_EM` | ALERTAS |
+| `ITEM_NOME`, `LOCAL_ARMAZENAMENTO` | ITENS_ESTOQUE |
+| `HOSPITAL_ID`, `HOSPITAL_NOME` | HOSPITAIS |
 
 ## Procedure PL/SQL
 
@@ -164,6 +198,8 @@ A procedure insere o histórico e preserva o saldo de estoque. O chamador contro
 | -20003 | Data de referência ausente. |
 | -20004 | Item inexistente. |
 | -20005 | Hospital inexistente. |
+
+As functions e procedures da Parte 3 (`fn_dias_cobertura_estoque`, `fn_status_estoque_formatado`, `prc_registrar_alertas_criticos` e `prc_relatorio_consumo_hospital`) usam a faixa de códigos -20101 a -20121 e estão documentadas em [plsql/README.md](plsql/README.md).
 
 ## Referências técnicas
 
