@@ -1,6 +1,8 @@
 package br.com.fiap.medistockbackend.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -44,6 +47,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleIntegridade(DataIntegrityViolationException ex) {
+        log.warn("Violacao de integridade: {}", ex.getMostSpecificCause().getMessage());
         return construirResposta(HttpStatus.CONFLICT,
                 "Operacao nao permitida: existem registros vinculados a este recurso", null);
     }
@@ -69,7 +73,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGenerico(Exception ex) {
+    public ResponseEntity<Map<String, Object>> handleGenerico(Exception ex, HttpServletRequest request) {
+        log.error("Erro inesperado em {} {}", request.getMethod(), request.getRequestURI(), ex);
         return construirResposta(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno inesperado", null);
     }
 
