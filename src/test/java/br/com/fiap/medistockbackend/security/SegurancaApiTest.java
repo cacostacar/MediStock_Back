@@ -48,6 +48,22 @@ class SegurancaApiTest {
         assertEquals(200, resposta.statusCode());
     }
 
+    @Test
+    void deveResponderPreflightCorsSemCredenciais() throws Exception {
+        HttpRequest requisicao = HttpRequest.newBuilder(URI.create("http://localhost:" + porta + "/api/hospitais"))
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .header("Origin", "http://localhost:8081")
+                .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "authorization")
+                .build();
+
+        HttpResponse<String> resposta = httpClient.send(requisicao, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, resposta.statusCode());
+        assertEquals("http://localhost:8081", resposta.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+        assertTrue(resposta.headers().firstValue("Access-Control-Allow-Credentials").isEmpty());
+    }
+
     private HttpResponse<String> get(String caminho, String authorization) throws Exception {
         HttpRequest.Builder requisicao = HttpRequest.newBuilder(URI.create("http://localhost:" + porta + caminho)).GET();
         if (authorization != null) {
