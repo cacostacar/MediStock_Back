@@ -9,8 +9,11 @@ import br.com.fiap.medistockbackend.exception.ResourceNotFoundException;
 import br.com.fiap.medistockbackend.repository.PlsqlRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataAccessException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,17 @@ public class PlsqlService {
         } catch (DataAccessException ex) {
             log.error("Falha ao acionar prc_registrar_alertas_criticos para o hospital {}",
                     evento.hospitalId(), ex);
+        }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Scheduled(cron = "${medistock.plsql.alertas.cron:0 5 0 * * *}")
+    public void processarRotinaDeAlertas() {
+        try {
+            int total = plsqlRepository.registrarAlertasCriticos(null);
+            log.info("Rotina de alertas PL/SQL executada: {} alerta(s) novo(s)", total);
+        } catch (DataAccessException ex) {
+            log.error("Falha na rotina de alertas PL/SQL", ex);
         }
     }
 

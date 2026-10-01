@@ -4,6 +4,7 @@
 -- Conteudo:
 --   1. Limpeza dos objetos (script pode ser reexecutado)
 --   2. DDL das tabelas (espelha as entidades JPA do back-end + tabela ALERTAS)
+--      e view VW_ALERTAS_VIGENTES
 --   3. Dados simulados
 --   4. Functions  : fn_dias_cobertura_estoque, fn_status_estoque_formatado
 --   5. Procedures : prc_registrar_alertas_criticos, prc_relatorio_consumo_hospital
@@ -27,7 +28,8 @@ BEGIN
           FROM user_objects
          WHERE object_name IN (
                    'PRC_REGISTRAR_ALERTAS_CRITICOS', 'PRC_RELATORIO_CONSUMO_HOSPITAL',
-                   'FN_DIAS_COBERTURA_ESTOQUE', 'FN_STATUS_ESTOQUE_FORMATADO'
+                   'FN_DIAS_COBERTURA_ESTOQUE', 'FN_STATUS_ESTOQUE_FORMATADO',
+                   'VW_ALERTAS_VIGENTES'
                )
     ) LOOP
         EXECUTE IMMEDIATE 'DROP ' || obj.object_type || ' ' || obj.object_name;
@@ -107,7 +109,7 @@ CREATE TABLE transferencias (
                          CHECK (status IN ('PENDENTE', 'EM_ROTA', 'CONCLUIDA', 'CANCELADA')),
     distancia_km         NUMBER,
     tempo_estimado_min   NUMBER,
-    motivo               VARCHAR2(300),
+    motivo               VARCHAR2(1000),
     gerado_por_ia        NUMBER(1)      DEFAULT 0 NOT NULL CHECK (gerado_por_ia IN (0, 1)),
     criado_em            TIMESTAMP      DEFAULT SYSTIMESTAMP,
     CONSTRAINT fk_transf_item    FOREIGN KEY (item_estoque_id)     REFERENCES itens_estoque(id) ON DELETE CASCADE,
@@ -147,6 +149,54 @@ CREATE INDEX ix_itens_hospital  ON itens_estoque (hospital_id);
 CREATE INDEX ix_hist_item_mes   ON historico_consumo (item_estoque_id, mes_referencia);
 CREATE INDEX ix_hist_hosp_mes   ON historico_consumo (hospital_id, mes_referencia);
 CREATE INDEX ix_alertas_item    ON alertas (item_estoque_id, criado_em);
+
+-- -----------------------------------------------------------------------------
+-- VIEW vw_alertas_vigentes
+--
+-- Alertas que ainda valem para a situacao atual do estoque, usada pela tela
+-- de Alertas do back-end. Considera os alertas registrados hoje pela
+-- procedure, pega o mais recente de cada item por categoria (estoque ou
+-- validade) e descarta os que deixaram de valer (ex.: item reposto depois
+-- do alerta de estoque critico).
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW vw_alertas_vigentes AS
+SELECT item_estoque_id, item_nome, hospital_id, hospital_nome,
+       tipo, mensagem, local_armazenamento, criado_em
+  FROM (
+        SELECT a.item_estoque_id,
+               ie.nome                AS item_nome,
+               h.id                   AS hospital_id,
+               h.nome                 AS hospital_nome,
+               a.tipo,
+               a.mensagem,
+               ie.local_armazenamento,
+               a.criado_em,
+               ie.quantidade_atual,
+               ie.quantidade_minima,
+               ie.validade,
+               CASE WHEN a.mensagem LIKE 'Estoque%' THEN 'ESTOQUE' ELSE 'VALIDADE' END AS categoria,
+               ROW_NUMBER() OVER (
+                   PARTITION BY a.item_estoque_id,
+                                CASE WHEN a.mensagem LIKE 'Estoque%' THEN 'ESTOQUE' ELSE 'VALIDADE' END
+                   ORDER BY a.criado_em DESC, a.id DESC
+               ) AS ordem
+          FROM alertas a
+          JOIN itens_estoque ie ON ie.id = a.item_estoque_id
+          JOIN hospitais h      ON h.id  = ie.hospital_id
+         WHERE a.criado_em >= TRUNC(SYSDATE)
+       )
+ WHERE ordem = 1
+   AND (
+           (categoria = 'ESTOQUE'
+            AND tipo = CASE
+                           WHEN quantidade_atual <= quantidade_minima       THEN 'CRITICO'
+                           WHEN quantidade_atual <= quantidade_minima * 1.5 THEN 'ATENCAO'
+                       END)
+        OR (categoria = 'VALIDADE' AND mensagem LIKE 'Item vencido%'
+            AND validade < TRUNC(SYSDATE))
+        OR (categoria = 'VALIDADE' AND mensagem LIKE 'Validade proxima%'
+            AND validade BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 60)
+       );
 
 
 -- =============================================================================
@@ -356,15 +406,20 @@ END fn_status_estoque_formatado;
 -- Funcionamento:
 --   1. Abre um CURSOR com os itens do hospital informado (ou de todos).
 --   2. Em LOOP, classifica cada item com IF/ELSIF.
---   3. Evita duplicidade: so insere se o mesmo alerta nao foi gerado hoje.
+--   3. Evita duplicidade com o subprograma local registrar_se_novo: so insere
+--      se o mesmo alerta (tipo + texto) nao foi gerado hoje. Se a situacao do
+--      item muda (ex.: quantidade cai de 150 para 140), um novo alerta e
+--      gravado com os valores atuais, formando um historico auditavel.
 --   4. Cada item roda em um bloco proprio com EXCEPTION, entao a falha de um
 --      item e registrada via DBMS_OUTPUT e nao interrompe os demais.
 --   5. Faz COMMIT ao final e devolve a quantidade de alertas criados.
 --
 -- Acionamento pelo back-end (Java):
 --   Chamada via JDBC (SimpleJdbcCall) sempre que um item de estoque e criado
---   ou atualizado (evento EstoqueAlteradoEvent) e pelo endpoint
+--   ou atualizado (evento EstoqueAlteradoEvent), na inicializacao da API,
+--   diariamente as 00:05 (rotina agendada) e pelo endpoint
 --   POST /api/plsql/alertas/processar.
+--   A tela de Alertas do app le o resultado pela view VW_ALERTAS_VIGENTES.
 --
 -- Parametros:
 --   p_hospital_id   (IN, opcional) - restringe a um hospital; NULL = todos
@@ -388,8 +443,33 @@ IS
 
     v_nivel          VARCHAR2(10);
     v_dias_venc      NUMBER;
-    v_ja_registrado  NUMBER;
     v_total_alertas  PLS_INTEGER := 0;
+
+    -- Subprograma local: grava o alerta somente se o mesmo alerta (tipo e
+    -- texto) ainda nao foi registrado hoje para o item
+    PROCEDURE registrar_se_novo (
+        p_item_id   IN alertas.item_estoque_id%TYPE,
+        p_hosp_id   IN alertas.hospital_id%TYPE,
+        p_tipo      IN alertas.tipo%TYPE,
+        p_mensagem  IN alertas.mensagem%TYPE,
+        p_origem    IN alertas.origem%TYPE
+    ) IS
+        v_ja_registrado NUMBER;
+    BEGIN
+        SELECT COUNT(*)
+          INTO v_ja_registrado
+          FROM alertas
+         WHERE item_estoque_id = p_item_id
+           AND tipo = p_tipo
+           AND mensagem = p_mensagem
+           AND criado_em >= TRUNC(SYSDATE);
+
+        IF v_ja_registrado = 0 THEN
+            INSERT INTO alertas (item_estoque_id, hospital_id, tipo, mensagem, origem)
+            VALUES (p_item_id, p_hosp_id, p_tipo, p_mensagem, p_origem);
+            v_total_alertas := v_total_alertas + 1;
+        END IF;
+    END registrar_se_novo;
 BEGIN
     FOR r_item IN c_itens LOOP
         BEGIN
@@ -403,22 +483,11 @@ BEGIN
             END IF;
 
             IF v_nivel IS NOT NULL THEN
-                SELECT COUNT(*)
-                  INTO v_ja_registrado
-                  FROM alertas
-                 WHERE item_estoque_id = r_item.id
-                   AND tipo = v_nivel
-                   AND mensagem LIKE 'Estoque%'
-                   AND TRUNC(criado_em) = TRUNC(SYSDATE);
-
-                IF v_ja_registrado = 0 THEN
-                    INSERT INTO alertas (item_estoque_id, hospital_id, tipo, mensagem, origem)
-                    VALUES (r_item.id, r_item.hospital_id, v_nivel,
-                            'Estoque ' || LOWER(v_nivel) || ': ' || r_item.quantidade_atual || ' ' ||
-                            r_item.unidade || ' (minimo ' || r_item.quantidade_minima || ') - ' || r_item.nome,
-                            r_item.local_armazenamento);
-                    v_total_alertas := v_total_alertas + 1;
-                END IF;
+                registrar_se_novo(
+                    r_item.id, r_item.hospital_id, v_nivel,
+                    'Estoque ' || LOWER(v_nivel) || ': ' || r_item.quantidade_atual || ' ' ||
+                    r_item.unidade || ' (minimo ' || r_item.quantidade_minima || ') - ' || r_item.nome,
+                    r_item.local_armazenamento);
             END IF;
 
             -- 2) Alerta de validade
@@ -426,38 +495,16 @@ BEGIN
                 v_dias_venc := TRUNC(r_item.validade) - TRUNC(SYSDATE);
 
                 IF v_dias_venc < 0 THEN
-                    SELECT COUNT(*)
-                      INTO v_ja_registrado
-                      FROM alertas
-                     WHERE item_estoque_id = r_item.id
-                       AND mensagem LIKE 'Item vencido%'
-                       AND TRUNC(criado_em) = TRUNC(SYSDATE);
-
-                    IF v_ja_registrado = 0 THEN
-                        INSERT INTO alertas (item_estoque_id, hospital_id, tipo, mensagem, origem)
-                        VALUES (r_item.id, r_item.hospital_id, 'CRITICO',
-                                'Item vencido em ' || TO_CHAR(r_item.validade, 'DD/MM/YYYY') ||
-                                ' - ' || r_item.nome,
-                                r_item.local_armazenamento);
-                        v_total_alertas := v_total_alertas + 1;
-                    END IF;
-
+                    registrar_se_novo(
+                        r_item.id, r_item.hospital_id, 'CRITICO',
+                        'Item vencido em ' || TO_CHAR(r_item.validade, 'DD/MM/YYYY') || ' - ' || r_item.nome,
+                        r_item.local_armazenamento);
                 ELSIF v_dias_venc <= 60 THEN
-                    SELECT COUNT(*)
-                      INTO v_ja_registrado
-                      FROM alertas
-                     WHERE item_estoque_id = r_item.id
-                       AND mensagem LIKE 'Validade proxima%'
-                       AND TRUNC(criado_em) = TRUNC(SYSDATE);
-
-                    IF v_ja_registrado = 0 THEN
-                        INSERT INTO alertas (item_estoque_id, hospital_id, tipo, mensagem, origem)
-                        VALUES (r_item.id, r_item.hospital_id,
-                                CASE WHEN v_dias_venc <= 15 THEN 'ATENCAO' ELSE 'INFO' END,
-                                'Validade proxima: vence em ' || v_dias_venc || ' dia(s) - ' || r_item.nome,
-                                r_item.local_armazenamento);
-                        v_total_alertas := v_total_alertas + 1;
-                    END IF;
+                    registrar_se_novo(
+                        r_item.id, r_item.hospital_id,
+                        CASE WHEN v_dias_venc <= 15 THEN 'ATENCAO' ELSE 'INFO' END,
+                        'Validade proxima: vence em ' || v_dias_venc || ' dia(s) - ' || r_item.nome,
+                        r_item.local_armazenamento);
                 END IF;
             END IF;
 
@@ -603,6 +650,11 @@ END;
 SELECT id, tipo, mensagem, origem, criado_em
   FROM alertas
  ORDER BY criado_em DESC;
+
+-- Alertas vigentes (o que a tela de Alertas do app exibe)
+SELECT item_nome, hospital_nome, tipo, mensagem
+  FROM vw_alertas_vigentes
+ ORDER BY DECODE(tipo, 'CRITICO', 1, 'ATENCAO', 2, 3), item_nome;
 
 -- 6.5) Reexecucao restrita ao Hospital 2: nao duplica alertas do mesmo dia
 DECLARE

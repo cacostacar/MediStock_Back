@@ -1,5 +1,6 @@
 package br.com.fiap.medistockbackend.repository;
 
+import br.com.fiap.medistockbackend.dto.AlertaResponse;
 import br.com.fiap.medistockbackend.dto.PlsqlDtos.AlertaRegistradoResponse;
 import br.com.fiap.medistockbackend.dto.PlsqlDtos.IndicadorEstoqueResponse;
 import br.com.fiap.medistockbackend.dto.PlsqlDtos.ItemConsumoResponse;
@@ -42,6 +43,12 @@ public class PlsqlRepository {
                    a.tipo, a.mensagem, a.origem, a.criado_em
               FROM alertas a
               LEFT JOIN itens_estoque ie ON ie.id = a.item_estoque_id
+            """;
+
+    private static final String SQL_ALERTAS_VIGENTES = """
+            SELECT item_estoque_id, item_nome, tipo, mensagem, hospital_nome, local_armazenamento
+              FROM vw_alertas_vigentes
+             ORDER BY DECODE(tipo, 'CRITICO', 1, 'ATENCAO', 2, 3), item_nome, criado_em DESC
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -107,6 +114,16 @@ public class PlsqlRepository {
         }
         return jdbcTemplate.query(SQL_ALERTAS + " WHERE a.hospital_id = ?" + ordenacao,
                 this::mapearAlerta, hospitalId);
+    }
+
+    public List<AlertaResponse> listarAlertasVigentes() {
+        return jdbcTemplate.query(SQL_ALERTAS_VIGENTES, (rs, linha) -> new AlertaResponse(
+                rs.getLong("item_estoque_id"),
+                rs.getString("item_nome"),
+                AlertaTipo.valueOf(rs.getString("tipo")),
+                rs.getString("mensagem"),
+                rs.getString("hospital_nome"),
+                rs.getString("local_armazenamento")));
     }
 
     private IndicadorEstoqueResponse mapearIndicador(ResultSet rs, int linha) throws SQLException {
