@@ -17,8 +17,8 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("MediStock API")
-                        .description("Backend Smart HAS - Gestao de estoque hospitalar com IA de redistribuicao")
-                        .version("v0.1 (Parte 1: Autenticacao)"))
+                        .description("Backend Smart HAS - Gestao de estoque hospitalar com IA de redistribuicao e persistencia Oracle com PL/SQL")
+                        .version("1.0"))
                 .addSecurityItem(new SecurityRequirement().addList(esquemaBearer))
                 .components(new Components().addSecuritySchemes(esquemaBearer,
                         new SecurityScheme()
