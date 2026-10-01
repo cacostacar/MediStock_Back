@@ -11,4 +11,3 @@ public interface ItemEstoqueRepository extends JpaRepository<ItemEstoque, Long> 
 
     List<ItemEstoque> findByAltoCustoBaixaDemandaTrue();
 }
-

@@ -10,7 +10,7 @@ import java.util.List;
 
 @Component
 public class EmailInstitucionalValidator implements ConstraintValidator<EmailInstitucional, String> {
-   
+
     @Value("${medistock.auth.dominios-permitidos}")
     private String dominiosPermitidosRaw;
 

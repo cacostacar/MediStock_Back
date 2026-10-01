@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @Tag(name = "Autenticacao", description = "Cadastro e login institucional (telas 'Cadastro' e 'Acesso institucional')")
 public class AuthController {
-    
+
     private final AuthService authService;
 
     @PostMapping("/registrar")
@@ -33,4 +33,3 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 }
-

@@ -90,4 +90,3 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(corpo);
     }
 }
-

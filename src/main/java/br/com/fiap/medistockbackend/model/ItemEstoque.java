@@ -6,6 +6,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "itens_estoque")
@@ -30,10 +31,10 @@ public class ItemEstoque {
     private Integer quantidadeMinima;
 
     @Column(length = 20)
-    private String unidadeMedida; 
+    private String unidadeMedida;
 
     @Column(name = "local_armazenamento", length = 150)
-    private String localArmazenamento; 
+    private String localArmazenamento;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "hospital_id", nullable = false)
@@ -56,8 +57,6 @@ public class ItemEstoque {
     public void aoSalvar() {
         this.atualizadoEm = LocalDateTime.now();
     }
-
-    // Regras de negocio calculadas (nao persistidas)
 
     public NivelEstoque calcularNivel() {
         if (quantidadeAtual <= quantidadeMinima) {
@@ -84,6 +83,6 @@ public class ItemEstoque {
         if (validade == null) {
             return Long.MAX_VALUE;
         }
-        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), validade);
+        return ChronoUnit.DAYS.between(LocalDate.now(), validade);
     }
 }

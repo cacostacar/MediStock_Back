@@ -10,5 +10,3 @@ public record AlertaResponse(
         String hospitalNome,
         String localArmazenamento
 ) {}
-
-

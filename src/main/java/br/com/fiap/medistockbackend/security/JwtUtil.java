@@ -13,7 +13,7 @@ import java.util.function.Function;
 
 @Component
 public class JwtUtil {
-    
+
     @Value("${medistock.jwt.secret}")
     private String segredoBase64;
 

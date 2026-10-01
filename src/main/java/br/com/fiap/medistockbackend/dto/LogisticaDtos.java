@@ -12,8 +12,6 @@ import java.util.List;
 
 public class LogisticaDtos {
 
-    // Entregas
-
     public record EntregaRequest(
             @NotNull Long itemEstoqueId,
             @NotNull Long hospitalDestinoId,
@@ -43,8 +41,6 @@ public class LogisticaDtos {
             );
         }
     }
-
-    // Transferencias
 
     public record TransferenciaRequest(
             @NotNull Long itemEstoqueId,
@@ -81,8 +77,6 @@ public class LogisticaDtos {
             );
         }
     }
-
-    // Mapa (tela Logistica) 
 
     public record HospitalMapaPonto(
             Long id,

@@ -32,4 +32,3 @@ public class HistoricoConsumo {
     @Column(name = "quantidade_consumida", nullable = false)
     private Integer quantidadeConsumida;
 }
-
