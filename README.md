@@ -120,6 +120,8 @@ javac -version
 
 Confira se o Java utilizado pelo Maven também é o **25**. O Maven Wrapper obtém a distribuição Maven necessária ao projeto.
 
+No macOS ou Linux, os comandos equivalentes usam `./mvnw` no lugar de `.\mvnw.cmd` (por exemplo, `./mvnw -version`), e a chave JWT pode ser gerada com `openssl rand -base64 32`.
+
 ### 2. Preparar o Oracle
 
 No SQL Developer, configure uma conexão administrativa:
@@ -238,7 +240,7 @@ Após `BUILD SUCCESS`:
 
 Confirme no log que o perfil `oracle` está ativo (`The following 1 profile is active: "oracle"`) e que a rotina de alertas da Parte 3 rodou (`Rotina de alertas PL/SQL executada`). O comando de build acima pula a execução dos testes automatizados; as evidências desta entrega correspondem aos testes manuais da API e ao script de teste PL/SQL.
 
-Os testes automatizados rodam com `.\mvnw.cmd package`. Os testes que acessam o Oracle real só são executados quando a variável de ambiente `ORACLE_PASSWORD` está definida; eles desfazem os registros inseridos ao final.
+Os testes automatizados rodam com `.\mvnw.cmd package` e usam um perfil próprio (`test`, com SQLite em memória), sem depender do `.env`. Os testes que acessam o Oracle real só são executados quando a variável de ambiente `ORACLE_PASSWORD` está definida; eles desfazem os registros inseridos ao final.
 
 - API: [http://localhost:8080](http://localhost:8080)
 - Swagger UI: [http://localhost:8080/docs](http://localhost:8080/docs)

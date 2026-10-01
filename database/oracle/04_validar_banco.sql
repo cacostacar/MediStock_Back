@@ -33,7 +33,7 @@ WHERE OBJECT_TYPE IN ('PROCEDURE', 'FUNCTION', 'VIEW') ORDER BY OBJECT_TYPE, OBJ
 PROMPT Erros de compilacao: esperado nenhuma linha
 SELECT NAME, TYPE, LINE, POSITION, TEXT FROM USER_ERRORS ORDER BY NAME, SEQUENCE;
 
-PROMPT Relacionamentos: esperado oito FKs habilitadas
+PROMPT Relacionamentos: esperado oito FKs habilitadas (dez com ALERTAS, se o script 06 ja foi executado)
 SELECT TABLE_NAME, CONSTRAINT_NAME, STATUS
 FROM USER_CONSTRAINTS WHERE CONSTRAINT_TYPE = 'R'
 ORDER BY TABLE_NAME, CONSTRAINT_NAME;
