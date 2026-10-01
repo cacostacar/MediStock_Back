@@ -140,11 +140,18 @@ public class LogisticaService {
                 .quantidade(quantidade)
                 .distanciaKm(distanciaKm)
                 .tempoEstimadoMinutos(tempoMin)
-                .motivo(motivo)
+                .motivo(limitarMotivo(motivo))
                 .geradoPorIa(true)
                 .status(StatusLogistico.PENDENTE)
                 .build();
 
         return transferenciaRepository.save(transferencia);
+    }
+
+    private String limitarMotivo(String motivo) {
+        if (motivo == null || motivo.length() <= Transferencia.TAMANHO_MAXIMO_MOTIVO) {
+            return motivo;
+        }
+        return motivo.substring(0, Transferencia.TAMANHO_MAXIMO_MOTIVO - 3) + "...";
     }
 }

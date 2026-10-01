@@ -5,6 +5,7 @@ import br.com.fiap.medistockbackend.model.StatusLogistico;
 import br.com.fiap.medistockbackend.model.Transferencia;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -50,7 +51,7 @@ public class LogisticaDtos {
             @NotNull Long hospitalOrigemId,
             @NotNull Long hospitalDestinoId,
             @NotNull @Positive Integer quantidade,
-            String motivo
+            @Size(max = Transferencia.TAMANHO_MAXIMO_MOTIVO) String motivo
     ) {}
 
     public record TransferenciaResponse(
