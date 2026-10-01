@@ -8,9 +8,10 @@ O script [`medistock_plsql.sql`](medistock_plsql.sql) cria no Oracle o schema do
 |---|---|---|
 | `fn_dias_cobertura_estoque(p_item_id)` | Function (indicador) | Estima em quantos dias o estoque do item se esgota, usando o consumo médio mensal dos últimos 6 meses. Retorna `NULL` se não houver histórico. |
 | `fn_status_estoque_formatado(p_item_id)` | Function (dados formatados) | Retorna uma linha pronta para exibição: `[CRITICO] Dipirona 500mg (Hospital das Clinicas) - 15 cx (min. 50) - vence em 45 dia(s)`. |
-| `prc_registrar_alertas_criticos(p_hospital_id, p_total_alertas)` | Procedure | Percorre os itens com um `CURSOR` e grava na tabela `ALERTAS` os casos de estoque crítico/atenção, item vencido e validade próxima. Não duplica alertas no mesmo dia e devolve a quantidade criada. |
+| `prc_registrar_alertas_criticos(p_hospital_id, p_total_alertas)` | Procedure | Percorre os itens com um `CURSOR` e grava na tabela `ALERTAS` os casos de estoque crítico/atenção, item vencido e validade próxima. Usa o subprograma local `registrar_se_novo` para não gravar o mesmo alerta (tipo e texto) duas vezes no dia, e devolve a quantidade criada. |
 | `prc_relatorio_consumo_hospital(p_hospital_id, p_mes_referencia, ...)` | Procedure | Relatório de consumo de um hospital no mês: totais em parâmetros `OUT` e o detalhamento por item em um `SYS_REFCURSOR`. |
 | `ALERTAS` | Tabela | Histórico persistido dos alertas gerados pela procedure. |
+| `VW_ALERTAS_VIGENTES` | View | Alertas de hoje que ainda valem para a situação atual do estoque (o mais recente de cada item por categoria). É a fonte da tela **Alertas** do app no profile `oracle`. |
 
 Todos os objetos estão documentados no próprio script (propósito, parâmetros, retorno e exceções).
 
@@ -40,6 +41,8 @@ Todos os objetos estão documentados no próprio script (propósito, parâmetros
 
 O script pode ser reexecutado: a seção 1 remove os objetos antes de recriar.
 
+> **Atenção:** a seção 1 apaga as tabelas `HOSPITAIS`, `USUARIOS`, `ITENS_ESTOQUE`, `HISTORICO_CONSUMO`, `TRANSFERENCIAS`, `ENTREGAS` e `ALERTAS` do usuário conectado. Não rode com um usuário que tenha tabelas com esses nomes em uso por outra disciplina.
+
 ## Integração com o back-end (Java → JDBC → Oracle)
 
 ```mermaid
@@ -62,6 +65,8 @@ sequenceDiagram
 ```
 
 - **Evento de back-end:** ao criar (`POST /api/estoque`) ou atualizar (`PUT /api/estoque/{id}`) um item, o `ItemEstoqueService` publica um `EstoqueAlteradoEvent`. Após o commit, o `PlsqlService` (`@TransactionalEventListener`) chama `prc_registrar_alertas_criticos` para o hospital do item.
+- **Rotina automatizada:** a procedure também roda ao iniciar a API e todo dia às 00:05 (`@Scheduled`, configurável em `medistock.plsql.alertas.cron`). Assim os alertas de validade acompanham a passagem dos dias mesmo sem alterações no estoque.
+- **Tela Alertas:** no profile `oracle`, `GET /api/alertas` e `GET /api/alertas/resumo` leem os alertas de estoque da view `VW_ALERTAS_VIGENTES`, ou seja, exibem o que a procedure gravou. Os alertas de logística (transferências) continuam sendo montados pelo Java.
 - **`PlsqlRepository`** usa `SimpleJdbcCall` para as procedures (inclusive o `REF CURSOR` de saída) e `JdbcTemplate` para as consultas que usam as functions.
 - Os erros `ORA-20001`/`ORA-20020` viram HTTP 404 na API.
 
@@ -76,16 +81,6 @@ sequenceDiagram
 
 Também ficam disponíveis no Swagger (`/docs`), na tag **PL/SQL (Oracle)**.
 
-### Rodando o back-end no Oracle
+### Rodando e testando
 
-Sem profile, a aplicação continua usando SQLite. Para usar o Oracle, depois de executar o script:
-
-```bash
-SPRING_PROFILES_ACTIVE=oracle \
-ORACLE_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL \
-ORACLE_USER=rmXXXXX \
-ORACLE_PASSWORD=******** \
-./mvnw spring-boot:run
-```
-
-As variáveis também podem ficar no arquivo `.env` na raiz do projeto.
+O passo a passo para subir o back-end no Oracle (FIAP ou Docker local) e testar a integração está no [README do back-end](../../README.md#rodando-com-oracle).

@@ -1,6 +1,6 @@
 # Modelo de dados - MediStock (Smart HAS)
 
-Modelo relacional implantado no Oracle pelo script [`docs/plsql/medistock_plsql.sql`](../plsql/medistock_plsql.sql). As tabelas espelham as entidades JPA do back-end (`model/`), mais a tabela `ALERTAS`, que é exclusiva da camada PL/SQL.
+Modelo relacional implantado no Oracle pelo script [`docs/plsql/medistock_plsql.sql`](../plsql/medistock_plsql.sql). As tabelas espelham as entidades JPA do back-end (`model/`), mais a tabela `ALERTAS` e a view `VW_ALERTAS_VIGENTES`, exclusivas da camada PL/SQL.
 
 ![DER MediStock](der.png)
 
@@ -164,7 +164,7 @@ Remanejamento de insumos entre hospitais, manual ou sugerido pela IA.
 | status | VARCHAR2(20) | NOT NULL, PENDENTE / EM_ROTA / CONCLUIDA / CANCELADA |
 | distancia_km | NUMBER | |
 | tempo_estimado_min | NUMBER | |
-| motivo | VARCHAR2(300) | |
+| motivo | VARCHAR2(1000) | justificativa da IA ou motivo manual |
 | gerado_por_ia | NUMBER(1) | NOT NULL, 0/1 |
 | criado_em | TIMESTAMP | default SYSTIMESTAMP |
 
@@ -194,6 +194,15 @@ Histórico de alertas persistido pela procedure `prc_registrar_alertas_criticos`
 | mensagem | VARCHAR2(400) | NOT NULL |
 | origem | VARCHAR2(150) | local de armazenamento do item |
 | criado_em | TIMESTAMP | NOT NULL, default SYSTIMESTAMP |
+
+### VW_ALERTAS_VIGENTES (view)
+Alertas registrados hoje que ainda valem para a situação atual do item: o mais recente de cada item por categoria (estoque ou validade), descartando os que deixaram de valer, por exemplo um item reposto. É a fonte da tela Alertas do app no profile `oracle`.
+
+| Coluna | Origem |
+|---|---|
+| item_estoque_id, mensagem, tipo, criado_em | ALERTAS |
+| item_nome, local_armazenamento | ITENS_ESTOQUE |
+| hospital_id, hospital_nome | HOSPITAIS |
 
 ## Índices
 
