@@ -3,6 +3,7 @@ package br.com.fiap.medistockbackend.security;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,13 +13,8 @@ import java.net.http.HttpResponse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {
-                "spring.datasource.url=jdbc:sqlite:file:seguranca-test?mode=memory&cache=shared",
-                "medistock.jwt.secret=ZmFrZS10ZXN0LXNlY3JldC1rZXktd2l0aC1hdC1sZWFzdC0zMi1ieXRlcw==",
-                "medistock.gemini.api-key="
-        })
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 class SegurancaApiTest {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();

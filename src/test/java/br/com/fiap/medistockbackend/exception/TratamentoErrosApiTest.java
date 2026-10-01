@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,13 +17,8 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {
-                "spring.datasource.url=jdbc:sqlite:file:tratamento-erros-test?mode=memory&cache=shared",
-                "medistock.jwt.secret=ZmFrZS10ZXN0LXNlY3JldC1rZXktd2l0aC1hdC1sZWFzdC0zMi1ieXRlcw==",
-                "medistock.gemini.api-key="
-        })
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 class TratamentoErrosApiTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
