@@ -31,7 +31,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PlsqlService {
 
-    private static final Set<Integer> CODIGOS_NAO_ENCONTRADO = Set.of(20001, 20020);
+    private static final Set<Integer> CODIGOS_NAO_ENCONTRADO = Set.of(20101, 20120);
 
     private final PlsqlRepository plsqlRepository;
 
@@ -50,6 +50,7 @@ public class PlsqlService {
 
     @EventListener(ApplicationReadyEvent.class)
     @Scheduled(cron = "${medistock.plsql.alertas.cron:0 5 0 * * *}")
+    @Transactional
     public void processarRotinaDeAlertas() {
         try {
             int total = plsqlRepository.registrarAlertasCriticos(null);
