@@ -173,6 +173,8 @@ GEMINI_API_KEY=
 SPRING_PROFILES_ACTIVE=oracle
 ```
 
+`GEMINI_API_KEY` é opcional: sem ela, a redistribuição usa uma justificativa padrão. `CORS_ALLOWED_ORIGINS` também é opcional e restringe as origens aceitas pelo navegador (padrão: todas), por exemplo `http://localhost:8081,http://localhost:19006`.
+
 Com `SPRING_PROFILES_ACTIVE=oracle` no `.env`, a aplicação já inicia no perfil Oracle, sem precisar do parâmetro de perfil no comando. Sem essa linha, ela usa o SQLite local.
 
 Para gerar a chave JWT, execute no PowerShell e copie o resultado para `JWT_SECRET`:
@@ -588,7 +590,7 @@ A validação foi realizada no ambiente do projeto, usando o Swagger para as req
 | `release version 25 not supported` | Conferir o JDK em `java -version`, `javac -version` e `.\mvnw.cmd -version`. O projeto requer Java 25. |
 | Driver Oracle não encontrado no Maven | Conferir `ojdbc17:23.26.2.0.0` e executar `.\mvnw.cmd -U -DskipTests package`. |
 | `ORA-12505` no SQL Developer | Usar nome do serviço `FREEPDB1`, host `localhost` e porta `1521`. |
-| HTTP `403` em uma rota protegida | Autorizar um token válido no Swagger e conferir o cabeçalho `Authorization`. |
+| HTTP `401` em uma rota protegida | Token ausente, inválido ou expirado: autorizar um token válido no Swagger e conferir o cabeçalho `Authorization`. |
 | Erro de validação do schema | Conferir a conexão `MEDISTOCK`, os scripts implantados e os tipos definidos no dicionário. |
 | Procedure ausente ou `INVALID` | Executar o script 03 (ou 06, para a Parte 3) na conexão correta e consultar `USER_ERRORS`. |
 | Endpoints `/api/plsql` ausentes no Swagger | Conferir se o perfil `oracle` está ativo. |
