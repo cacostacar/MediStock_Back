@@ -18,9 +18,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Logistica", description = "Tela 'Logistica' -- Entregas e Transferencias entre hospitais da rede")
 public class LogisticaController {
-  private final LogisticaService logisticaService;
 
-    // Entregas 
+    private final LogisticaService logisticaService;
 
     @GetMapping("/entregas")
     @Operation(summary = "Lista as entregas (fornecedor -> hospital)")
@@ -39,8 +38,6 @@ public class LogisticaController {
     public EntregaResponse atualizarStatusEntrega(@PathVariable Long id, @RequestParam StatusLogistico status) {
         return logisticaService.atualizarStatusEntrega(id, status);
     }
-
-    // Transferencias 
 
     @GetMapping("/transferencias")
     @Operation(summary = "Lista as transferencias entre hospitais (manuais ou geradas pela IA)")
@@ -66,4 +63,3 @@ public class LogisticaController {
         return logisticaService.atualizarStatusTransferencia(id, status);
     }
 }
-

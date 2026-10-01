@@ -3,9 +3,8 @@ package br.com.fiap.medistockbackend.dto;
 public record AuthResponse(
 
     String token,
-    String tipo,          
+    String tipo,
     long expiraEmMinutos,
     UsuarioResponse usuario
-    
-) {}
 
+) {}

@@ -5,4 +5,3 @@ public enum NivelEstoque {
     ATENCAO,
     CRITICO
 }
-

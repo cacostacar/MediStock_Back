@@ -17,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-   private final UsuarioRepository usuarioRepository;
+
+    private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -60,5 +61,3 @@ public class AuthService {
         );
     }
 }
-
-

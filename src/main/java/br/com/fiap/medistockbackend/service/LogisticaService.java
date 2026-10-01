@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,8 +27,7 @@ public class LogisticaService {
     private final ItemEstoqueService itemEstoqueService;
     private final HospitalService hospitalService;
 
-    // Entregas
-
+    @Transactional(readOnly = true)
     public List<EntregaResponse> listarEntregas() {
         return entregaRepository.findAll().stream().map(EntregaResponse::fromEntity).toList();
     }
@@ -56,16 +57,16 @@ public class LogisticaService {
         return EntregaResponse.fromEntity(entrega);
     }
 
-    // Transferencias 
-
+    @Transactional(readOnly = true)
     public List<TransferenciaResponse> listarTransferencias() {
         return transferenciaRepository.findAll().stream().map(TransferenciaResponse::fromEntity).toList();
     }
 
     /** Dados prontos para um mapa: marcadores de hospitais e linhas de transferencias em aberto. */
+    @Transactional(readOnly = true)
     public LogisticaMapaResponse obterMapa() {
-        java.util.Map<Long, HospitalMapaPonto> hospitaisPorId = hospitalRepository.findAll().stream()
-                .collect(java.util.stream.Collectors.toMap(
+        Map<Long, HospitalMapaPonto> hospitaisPorId = hospitalRepository.findAll().stream()
+                .collect(Collectors.toMap(
                         Hospital::getId,
                         hospital -> new HospitalMapaPonto(
                                 hospital.getId(), hospital.getNome(), hospital.getCidade(),
@@ -140,11 +141,18 @@ public class LogisticaService {
                 .quantidade(quantidade)
                 .distanciaKm(distanciaKm)
                 .tempoEstimadoMinutos(tempoMin)
-                .motivo(motivo)
+                .motivo(limitarMotivo(motivo))
                 .geradoPorIa(true)
                 .status(StatusLogistico.PENDENTE)
                 .build();
 
         return transferenciaRepository.save(transferencia);
+    }
+
+    private String limitarMotivo(String motivo) {
+        if (motivo == null || motivo.length() <= Transferencia.TAMANHO_MAXIMO_MOTIVO) {
+            return motivo;
+        }
+        return motivo.substring(0, Transferencia.TAMANHO_MAXIMO_MOTIVO - 3) + "...";
     }
 }

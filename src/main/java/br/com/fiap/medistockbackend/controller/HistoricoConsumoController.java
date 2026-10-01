@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Tag(name = "Historico de Consumo", description = "Alimenta os calculos da IA (media movel, demanda por hospital)")
 public class HistoricoConsumoController {
-     private final HistoricoConsumoService historicoConsumoService;
+
+    private final HistoricoConsumoService historicoConsumoService;
 
     @PostMapping
     @Operation(summary = "Registra um mes de consumo de um item em um hospital (usado para treinar as previsoes da IA)")
@@ -26,4 +27,3 @@ public class HistoricoConsumoController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
-

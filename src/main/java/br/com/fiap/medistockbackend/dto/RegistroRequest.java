@@ -16,6 +16,7 @@ public record RegistroRequest (
 
         @NotBlank(message = "E-mail institucional e obrigatorio")
         @EmailInstitucional
+        @Size(max = 150)
         String emailInstitucional,
 
         @NotBlank(message = "Senha e obrigatoria")

@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 @Builder
 public class Transferencia {
 
+    public static final int TAMANHO_MAXIMO_MOTIVO = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,8 +46,8 @@ public class Transferencia {
     @Column(name = "tempo_estimado_min")
     private Double tempoEstimadoMinutos;
 
-    @Column(length = 300)
-    private String motivo; 
+    @Column(length = TAMANHO_MAXIMO_MOTIVO)
+    private String motivo;
 
     @Column(name = "gerado_por_ia", nullable = false)
     @Builder.Default

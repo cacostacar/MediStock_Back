@@ -5,20 +5,19 @@ import br.com.fiap.medistockbackend.model.StatusLogistico;
 import br.com.fiap.medistockbackend.model.Transferencia;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.util.List;
 
 public class LogisticaDtos {
 
-    // Entregas
-
     public record EntregaRequest(
             @NotNull Long itemEstoqueId,
             @NotNull Long hospitalDestinoId,
             @NotNull @Positive Integer quantidade,
             LocalDate dataPrevista,
-            String transportadora
+            @Size(max = 150) String transportadora
     ) {}
 
     public record EntregaResponse(
@@ -43,14 +42,12 @@ public class LogisticaDtos {
         }
     }
 
-    // Transferencias
-
     public record TransferenciaRequest(
             @NotNull Long itemEstoqueId,
             @NotNull Long hospitalOrigemId,
             @NotNull Long hospitalDestinoId,
             @NotNull @Positive Integer quantidade,
-            String motivo
+            @Size(max = Transferencia.TAMANHO_MAXIMO_MOTIVO) String motivo
     ) {}
 
     public record TransferenciaResponse(
@@ -80,8 +77,6 @@ public class LogisticaDtos {
             );
         }
     }
-
-    // Mapa (tela Logistica) 
 
     public record HospitalMapaPonto(
             Long id,

@@ -36,5 +36,3 @@ public record ItemEstoqueRequest(
         boolean altoCustoBaixaDemanda
 
 ) {}
-
-

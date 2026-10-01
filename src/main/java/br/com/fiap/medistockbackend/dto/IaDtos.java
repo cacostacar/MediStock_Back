@@ -4,8 +4,6 @@ import java.util.List;
 import jakarta.validation.constraints.Positive;
 
 public class IaDtos {
-    
-    // Registro de historico (para alimentar a IA)
 
     public record HistoricoConsumoRequest(
             Long itemEstoqueId,
@@ -13,8 +11,6 @@ public class IaDtos {
             String mesReferencia, // formato "yyyy-MM-dd" ou "yyyy-MM"
             Integer quantidadeConsumida
     ) {}
-
-    // Tela "IA" (analise interna)
 
     /** Corresponde ao topo da tela IA: "Analise interna 36/100", Criticos/Prioritarios/Previsoes. */
     public record AnaliseInternaResponse(
@@ -37,8 +33,6 @@ public class IaDtos {
             int sugestaoCompraUnidades,
             int confiancaPercentual
     ) {}
-
-    //  Redistribuicao (alto custo / baixa demanda) 
 
     /** Um hospital candidato a armazenar o insumo, com sua pontuacao. */
     public record CandidatoHospitalResponse(

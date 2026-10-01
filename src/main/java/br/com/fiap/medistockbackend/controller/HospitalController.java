@@ -18,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Hospitais", description = "Rede de hospitais usada no estoque e na logistica/IA de redistribuicao")
 public class HospitalController {
-    
+
     private final HospitalService hospitalService;
 
     @GetMapping
@@ -52,9 +52,3 @@ public class HospitalController {
         return ResponseEntity.noContent().build();
     }
 }
-
-
-
-
-    
-
