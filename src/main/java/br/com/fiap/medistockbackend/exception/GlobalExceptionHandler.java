@@ -1,6 +1,7 @@
 package br.com.fiap.medistockbackend.exception;
 
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -39,6 +40,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<Map<String, Object>> handleParametroAusente(MissingServletRequestParameterException ex) {
         return construirResposta(HttpStatus.BAD_REQUEST, "Parametro obrigatorio ausente: " + ex.getParameterName(), null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleIntegridade(DataIntegrityViolationException ex) {
+        return construirResposta(HttpStatus.CONFLICT,
+                "Operacao nao permitida: existem registros vinculados a este recurso", null);
     }
 
     @ExceptionHandler(EmailCadastradoException.class)

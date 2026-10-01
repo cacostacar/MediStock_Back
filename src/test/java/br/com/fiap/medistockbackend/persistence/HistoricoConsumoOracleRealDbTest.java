@@ -5,10 +5,12 @@ import br.com.fiap.medistockbackend.exception.ResourceNotFoundException;
 import br.com.fiap.medistockbackend.model.Hospital;
 import br.com.fiap.medistockbackend.model.HistoricoConsumo;
 import br.com.fiap.medistockbackend.model.ItemEstoque;
-import oracle.jdbc.pool.OracleDataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -18,20 +20,35 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@EnabledIfEnvironmentVariable(named = "ORACLE_PASSWORD", matches = ".+")
 class HistoricoConsumoOracleRealDbTest {
 
+    private SingleConnectionDataSource dataSource;
     private HistoricoConsumoOracleWriter oracleWriter;
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void setUp() throws Exception {
-        OracleDataSource ds = new OracleDataSource();
-        ds.setURL("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
-        ds.setUser("MEDISTOCK");
-        ds.setPassword("dbusers");
+    void setUp() {
+        dataSource = new SingleConnectionDataSource(
+                variavel("ORACLE_URL", "jdbc:oracle:thin:@//localhost:1521/FREEPDB1"),
+                variavel("ORACLE_USER", "MEDISTOCK"),
+                System.getenv("ORACLE_PASSWORD"),
+                true);
+        dataSource.setAutoCommit(false);
 
-        this.jdbcTemplate = new JdbcTemplate(ds);
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.oracleWriter = new HistoricoConsumoOracleWriter(jdbcTemplate);
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        dataSource.getConnection().rollback();
+        dataSource.destroy();
+    }
+
+    private static String variavel(String nome, String padrao) {
+        String valor = System.getenv(nome);
+        return valor == null || valor.isBlank() ? padrao : valor;
     }
 
     @Test
