@@ -1,0 +1,43 @@
+erDiagram
+    direction TB
+    HOSPITAIS ||--o{ ITENS_ESTOQUE : armazena
+    HOSPITAIS ||--o{ HISTORICO_CONSUMO : registra
+    ITENS_ESTOQUE ||--o{ HISTORICO_CONSUMO : referencia
+    HOSPITAIS ||--o{ ENTREGAS : recebe
+    ITENS_ESTOQUE ||--o{ ENTREGAS : referencia
+    HOSPITAIS ||--o{ TRANSFERENCIAS : origem
+    HOSPITAIS ||--o{ TRANSFERENCIAS : destino
+    ITENS_ESTOQUE ||--o{ TRANSFERENCIAS : referencia
+    USUARIOS {
+        number ID PK
+        string EMAIL_INSTITUCIONAL UK
+    }
+    HOSPITAIS {
+        number ID PK
+        string NOME
+    }
+    ITENS_ESTOQUE {
+        number ID PK
+        string NOME
+        number HOSPITAL_ID FK
+    }
+    HISTORICO_CONSUMO {
+        number ID PK
+        number ITEM_ESTOQUE_ID FK
+        number HOSPITAL_ID FK
+        date MES_REFERENCIA
+        number QUANTIDADE_CONSUMIDA
+    }
+    ENTREGAS {
+        number ID PK
+        number ITEM_ESTOQUE_ID FK
+        number HOSPITAL_DESTINO_ID FK
+        string STATUS
+    }
+    TRANSFERENCIAS {
+        number ID PK
+        number ITEM_ESTOQUE_ID FK
+        number HOSPITAL_ORIGEM_ID FK
+        number HOSPITAL_DESTINO_ID FK
+        string STATUS
+    }

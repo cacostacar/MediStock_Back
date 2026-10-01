@@ -46,14 +46,14 @@ public class GlobalExceptionHandler {
         return construirResposta(HttpStatus.CONFLICT, ex.getMessage(), null);
     }
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNaoEncontrado(ResourceNotFoundException ex) {
-        return construirResposta(HttpStatus.NOT_FOUND, ex.getMessage(), null);
-    }
-
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<Map<String, Object>> handleRegraDeNegocio(BusinessRuleException ex) {
         return construirResposta(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleRecursoNaoEncontrado(ResourceNotFoundException ex) {
+        return construirResposta(HttpStatus.NOT_FOUND, ex.getMessage(), null);
     }
 
     @ExceptionHandler({CredenciaisInvalidasException.class, BadCredentialsException.class})

@@ -1,0 +1,36 @@
+-- Execute este arquivo SOMENTE na conexao SYSTEM / FREEPDB1, com F5.
+-- Substitua SUBSTITUA_POR_SUA_SENHA por uma senha sua antes de executar.
+-- Prefira executar a versao editada na planilha SQL e manter este modelo sem senha.
+-- Nao compartilhe nem versione a copia que contiver sua senha real.
+SET DEFINE OFF
+SET ECHO OFF
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
+DECLARE
+    v_existe NUMBER;
+BEGIN
+    IF SYS_CONTEXT('USERENV', 'SESSION_USER') <> 'SYSTEM'
+       OR SYS_CONTEXT('USERENV', 'CON_NAME') <> 'FREEPDB1' THEN
+        RAISE_APPLICATION_ERROR(-20090, 'Use SYSTEM no FREEPDB1.');
+    END IF;
+    SELECT COUNT(*) INTO v_existe FROM ALL_USERS WHERE USERNAME = 'MEDISTOCK';
+    IF v_existe > 0 THEN
+        RAISE_APPLICATION_ERROR(-20091,
+            'MEDISTOCK ja existe. Este script nao altera nem remove o usuario.');
+    END IF;
+END;
+/
+
+CREATE USER MEDISTOCK IDENTIFIED BY "SUBSTITUA_POR_SUA_SENHA"
+    DEFAULT TABLESPACE USERS
+    TEMPORARY TABLESPACE TEMP
+    QUOTA 100M ON USERS;
+
+GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE,
+      CREATE VIEW, CREATE PROCEDURE TO MEDISTOCK;
+
+SELECT USERNAME, ACCOUNT_STATUS, DEFAULT_TABLESPACE
+FROM DBA_USERS
+WHERE USERNAME = 'MEDISTOCK';
+
+PROMPT Usuario criado. Agora abra uma NOVA conexao como MEDISTOCK / FREEPDB1.
