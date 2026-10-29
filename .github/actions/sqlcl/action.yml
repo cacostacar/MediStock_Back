@@ -1,0 +1,14 @@
+name: Instalar Oracle SQLcl
+description: Baixa o Oracle SQLcl e o disponibiliza como o comando "sql" no PATH do runner.
+runs:
+  using: composite
+  steps:
+    - name: Baixar e instalar o SQLcl
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -fsSL -o "$RUNNER_TEMP/sqlcl.zip" \
+          https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
+        unzip -q "$RUNNER_TEMP/sqlcl.zip" -d "$RUNNER_TEMP"
+        chmod +x "$RUNNER_TEMP/sqlcl/bin/sql"
+        echo "$RUNNER_TEMP/sqlcl/bin" >> "$GITHUB_PATH"
