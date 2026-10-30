@@ -33,3 +33,6 @@ build/
 .vscode/
 
 .env
+# Artefatos locais do pipeline
+logs/
+relatorio-execucao.md

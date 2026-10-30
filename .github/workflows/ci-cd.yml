@@ -1,0 +1,301 @@
+# =============================================================================
+# MediStock (Smart HAS) - Pipeline CI/CD
+#
+# build         -> compila, roda os testes automatizados e publica o .jar
+# oracle-it     -> sobe um Oracle Free real, aplica os scripts PL/SQL e roda
+#                  os testes de integracao contra o banco provisionado
+# deploy        -> publica a imagem no GHCR, aplica os objetos Oracle no banco
+#                  alvo, faz o rollout da API e valida com um smoke test
+# relatorio     -> consolida logs e relatorios de execucao de todos os jobs
+# =============================================================================
+name: CI/CD MediStock
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      carga_inicial:
+        description: "Executar 01_criar_tabelas e 02_dados_simulados no banco alvo (apenas em schema novo)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: "25"
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build e testes automatizados
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Compilar e executar os testes
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          ./mvnw -B -ntp verify 2>&1 | tee logs/build.log
+
+      - name: Gerar relatorio de testes
+        if: always()
+        shell: bash
+        run: python3 .github/scripts/relatorio_testes.py "Build e testes (SQLite/in-memory)"
+
+      - name: Publicar artefato .jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: medistock-jar
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar logs e relatorios do build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-build
+          path: |
+            logs/
+            target/surefire-reports/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 2. Integracao com o Oracle: provisiona o schema e roda os testes reais
+  # ---------------------------------------------------------------------------
+  oracle-it:
+    name: Integracao Oracle (PL/SQL)
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      oracle:
+        image: gvenzl/oracle-free:23-slim-faststart
+        env:
+          ORACLE_PASSWORD: Ci_MediStock#2026
+          APP_USER: MEDISTOCK
+          APP_USER_PASSWORD: Ci_MediStock#2026
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd healthcheck.sh
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+          --health-start-period 90s
+
+    env:
+      ORACLE_URL: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+      ORACLE_USER: MEDISTOCK
+      ORACLE_PASSWORD: Ci_MediStock#2026
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Instalar Oracle SQLcl
+        uses: ./.github/actions/sqlcl
+
+      - name: Aplicar os scripts do banco (01 a 07)
+        shell: bash
+        run: |
+          .github/scripts/aplicar_scripts.sh \
+            "MEDISTOCK" "$ORACLE_PASSWORD" "//localhost:1521/FREEPDB1" \
+            01_criar_tabelas.sql \
+            02_dados_simulados.sql \
+            03_procedure_consumo.sql \
+            06_parte3_plsql.sql \
+            04_validar_banco.sql \
+            05_testar_procedure.sql \
+            07_parte3_exemplos.sql
+
+      - name: Executar os testes de integracao contra o Oracle
+        shell: bash
+        run: |
+          set -o pipefail
+          ./mvnw -B -ntp verify 2>&1 | tee logs/integracao-oracle.log
+
+      - name: Gerar relatorio de testes
+        if: always()
+        shell: bash
+        run: python3 .github/scripts/relatorio_testes.py "Integracao com Oracle Free (banco real)"
+
+      - name: Publicar logs e relatorios da integracao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-oracle
+          path: |
+            logs/
+            target/surefire-reports/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 3. Deploy: imagem no GHCR + objetos Oracle no banco alvo + rollout da API
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy (back-end + Oracle)
+    runs-on: ubuntu-latest
+    needs: [build, oracle-it]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: producao
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      ORACLE_URL: ${{ secrets.ORACLE_URL }}
+      ORACLE_USER: ${{ secrets.ORACLE_USER }}
+      ORACLE_PASSWORD: ${{ secrets.ORACLE_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Baixar o .jar gerado no build
+        uses: actions/download-artifact@v4
+        with:
+          name: medistock-jar
+          path: target
+
+      # --- 3.1 Banco Oracle --------------------------------------------------
+      - name: Instalar Oracle SQLcl
+        uses: ./.github/actions/sqlcl
+
+      - name: Aplicar objetos PL/SQL no banco alvo
+        shell: bash
+        run: |
+          origem=$(echo "$ORACLE_URL" | sed 's#^jdbc:oracle:thin:@##')
+          scripts=""
+          if [ "${{ inputs.carga_inicial }}" = "true" ]; then
+            scripts="01_criar_tabelas.sql 02_dados_simulados.sql"
+          fi
+          scripts="$scripts 03_procedure_consumo.sql 06_parte3_plsql.sql 04_validar_banco.sql"
+          .github/scripts/aplicar_scripts.sh \
+            "${ORACLE_USER:-MEDISTOCK}" "$ORACLE_PASSWORD" "$origem" $scripts
+
+      # --- 3.2 Imagem da aplicacao ------------------------------------------
+      - name: Autenticar no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Definir o nome da imagem
+        id: imagem
+        shell: bash
+        run: echo "nome=ghcr.io/$(echo '${{ github.repository }}' | tr 'A-Z' 'a-z')" >> "$GITHUB_OUTPUT"
+
+      - name: Construir e publicar a imagem
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.imagem.outputs.nome }}:${{ github.sha }}
+            ${{ steps.imagem.outputs.nome }}:latest
+
+      # --- 3.3 Rollout opcional no servidor ---------------------------------
+      - name: Fazer o rollout da API no servidor
+        if: vars.DEPLOY_SSH_ENABLED == 'true'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+          IMAGEM: ${{ steps.imagem.outputs.nome }}:${{ github.sha }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/rollout_ssh.sh
+
+      - name: Smoke test da API publicada
+        if: vars.DEPLOY_HEALTHCHECK_URL != ''
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          url="${{ vars.DEPLOY_HEALTHCHECK_URL }}"
+          echo "Verificando $url" | tee logs/smoke-test.log
+          for tentativa in $(seq 1 20); do
+            codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)
+            echo "tentativa $tentativa -> HTTP $codigo" | tee -a logs/smoke-test.log
+            if [ "$codigo" = "200" ]; then
+              echo "### Smoke test OK em $url" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "### Smoke test falhou em $url" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Publicar logs do deploy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-deploy
+          path: logs/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 4. Relatorio consolidado da execucao
+  # ---------------------------------------------------------------------------
+  relatorio:
+    name: Relatorio de execucao
+    runs-on: ubuntu-latest
+    needs: [build, oracle-it, deploy]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar todos os artefatos
+        uses: actions/download-artifact@v4
+        with:
+          path: artefatos
+
+      - name: Consolidar o relatorio
+        shell: bash
+        env:
+          STATUS_BUILD: ${{ needs.build.result }}
+          STATUS_ORACLE: ${{ needs.oracle-it.result }}
+          STATUS_DEPLOY: ${{ needs.deploy.result }}
+        run: python3 .github/scripts/relatorio_execucao.py
+
+      - name: Publicar o relatorio consolidado
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-execucao
+          path: relatorio-execucao.md
+          retention-days: 90

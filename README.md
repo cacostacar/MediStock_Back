@@ -6,7 +6,7 @@ O MediStock organiza hospitais, insumos, históricos de consumo, entregas e tran
 
 **Ambiente da demonstração:** Windows, Java 25, Spring Boot, Oracle Database Free e SQL Developer. As evidências foram capturadas em **26/09/2026** em ambiente local, com dados de demonstração.
 
-[Como executar](#execucao) · [Modelo de dados](#modelo) · [PL/SQL](#plsql) · [Parte 3](#parte3) · [Testes](#testes) · [12 evidências](#evidencias)
+[Como executar](#execucao) · [Modelo de dados](#modelo) · [PL/SQL](#plsql) · [Parte 3](#parte3) · [Testes](#testes) · [12 evidências](#evidencias) · [Pipeline CI/CD](docs/CI_CD.md)
 
 <a id="objetivo"></a>
 ## Objetivo da atividade
